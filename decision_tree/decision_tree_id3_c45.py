@@ -74,6 +74,8 @@ def load_dataset(path: str) -> tuple[np.ndarray, np.ndarray, list[str]]:
 class TreeNode:
     is_leaf: bool
     prediction: Any
+    sample_count: int = 0
+    majority_count: int = 0
     feature_index: Optional[int] = None
     feature_name: Optional[str] = None
     children: Dict[Any, "TreeNode"] = field(default_factory=dict)
@@ -137,36 +139,39 @@ class DecisionTree:
 
     def prune(self, alpha: float = 0.0) -> None:
         """
-        自底向上比较两种代价:
-        - 保留子树: sum(|N_i| * H(N_i)) + alpha * 叶子数
-        - 剪成叶子: |N_t| * H(N_t) + alpha
-        若剪成叶子的代价更小，就回缩这个节点。
+        ID3:
+        - 默认不剪枝，保留完整树结构。
+
+        C4.5:
+        - 使用悲观剪枝（PEP）。
+        - 以训练误差的悲观估计比较叶节点与子树。
         """
         if self.tree is None:
             raise ValueError("model is not fitted")
-        if alpha < 0:
-            raise ValueError("alpha must be non-negative")
-        if self._train_X is None or self._train_y is None:
-            raise ValueError("training data is unavailable for pruning")
-
-        self._prune_node(self.tree, self._train_X, self._train_y, alpha)
+        if self.criterion == "id3":
+            return
+        self._pep_prune_node(self.tree)
 
     def _build_tree(self, X: np.ndarray, y: np.ndarray, feature_indices: np.ndarray) -> TreeNode:
         prediction = majority_label(y)
+        _, counts = np.unique(y, return_counts=True)
+        majority_count = int(np.max(counts))
 
         if np.unique(y).size == 1:
-            return TreeNode(is_leaf=True, prediction=prediction)
+            return TreeNode(is_leaf=True, prediction=prediction, sample_count=int(y.size), majority_count=majority_count)
 
         if feature_indices.size == 0:
-            return TreeNode(is_leaf=True, prediction=prediction)
+            return TreeNode(is_leaf=True, prediction=prediction, sample_count=int(y.size), majority_count=majority_count)
 
         best_feature = self._choose_best_feature(X, y, feature_indices)
         if best_feature is None:
-            return TreeNode(is_leaf=True, prediction=prediction)
+            return TreeNode(is_leaf=True, prediction=prediction, sample_count=int(y.size), majority_count=majority_count)
 
         node = TreeNode(
             is_leaf=False,
             prediction=prediction,
+            sample_count=int(y.size),
+            majority_count=majority_count,
             feature_index=int(best_feature),
             feature_name=self.feature_names[int(best_feature)] if self.feature_names else None,
         )
@@ -185,7 +190,7 @@ class DecisionTree:
                 )
 
         if not node.children:
-            return TreeNode(is_leaf=True, prediction=prediction)
+            return TreeNode(is_leaf=True, prediction=prediction, sample_count=int(y.size), majority_count=majority_count)
         return node
 
     def _choose_best_feature(self, X: np.ndarray, y: np.ndarray, feature_indices: np.ndarray) -> Optional[int]:
@@ -242,6 +247,37 @@ class DecisionTree:
             return leaf_cost, 1
 
         return subtree_cost, subtree_leaves
+
+    def _pep_prune_node(self, node: TreeNode) -> tuple[float, int]:
+        """
+        悲观剪枝（PEP）:
+        - 叶节点悲观误差: e(t) + 0.5
+        - 子树悲观误差: sum(e(leaf)) + 0.5 * 叶子数
+        若叶节点的悲观误差不大于子树悲观误差，则剪枝。
+        """
+        leaf_error = float(node.sample_count - node.majority_count)
+
+        if node.is_leaf:
+            return leaf_error + 0.5, 1
+
+        subtree_error = 0.0
+        subtree_leaves = 0
+        for child in node.children.values():
+            child_error, child_leaves = self._pep_prune_node(child)
+            subtree_error += child_error
+            subtree_leaves += child_leaves
+
+        leaf_pep_error = leaf_error + 0.5
+        subtree_pep_error = subtree_error
+
+        if leaf_pep_error <= subtree_pep_error:
+            node.is_leaf = True
+            node.feature_index = None
+            node.feature_name = None
+            node.children = {}
+            return leaf_pep_error, 1
+
+        return subtree_pep_error, subtree_leaves
 
     def print_tree(self, node: Optional[TreeNode] = None, indent: str = "") -> None:
         if self.tree is None:
