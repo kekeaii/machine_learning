@@ -28,6 +28,12 @@ We convert the original score prediction problem into binary classification:
 
 The original `Exam_Score` column is removed from the feature set. The remaining 19 columns are used as input features.
 
+Pruning strategy used in the current code:
+
+- `ID3`: no pruning
+- `C4.5`: simplified pessimistic error pruning (PEP)
+- `CART`: cost-complexity pruning with `alpha`
+
 ## Experimental Protocol
 
 - Use the first `1000` samples.
@@ -73,8 +79,7 @@ python3 eval_student_binary_id3_c45.py \
   --algo id3 \
   --n-samples 1000 \
   --train-size 800 \
-  --random-state 42 \
-  --alpha 0.0
+  --random-state 42
 ```
 
 ### C4.5
@@ -85,8 +90,7 @@ python3 eval_student_binary_id3_c45.py \
   --algo c45 \
   --n-samples 1000 \
   --train-size 800 \
-  --random-state 42 \
-  --alpha 0.0
+  --random-state 42
 ```
 
 ### CART
@@ -107,7 +111,7 @@ Using `StudentPerformanceFactors_binary_68.csv` with the protocol above:
 | Algorithm | Train Accuracy | Eval Accuracy | Tree Depth |
 |---|---:|---:|---:|
 | ID3 | 100.00% | 71.00% | 4 |
-| C4.5 | 100.00% | 73.00% | 7 |
+| C4.5 | 91.25% | 73.00% | 7 |
 | CART | 100.00% | 80.50% | 16 |
 
 Evaluation set distribution:
@@ -118,7 +122,7 @@ Evaluation set distribution:
 Confusion matrices:
 
 - ID3: `TP=52, FN=35, FP=23, TN=90`
-- C4.5: `TP=63, FN=24, FP=30, TN=83`
+- C4.5: `TP=64, FN=23, FP=31, TN=82`
 - CART: `TP=67, FN=20, FP=19, TN=94`
 
 ## Notes
@@ -127,3 +131,4 @@ Confusion matrices:
 - Numerical computation is performed with `numpy`.
 - ID3 and C4.5 treat all features as discrete, so evaluation converts feature values to strings.
 - CART uses numeric encoding for categorical columns during evaluation.
+- The current C4.5 pruning is a simplified PEP-style implementation rather than a full textbook PEP formula.

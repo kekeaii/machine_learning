@@ -86,7 +86,9 @@ class DecisionTree:
     手写分类决策树，只处理离散特征。
     - ID3: 信息增益
     - C4.5: 增益率
-    剪枝: 基于经验熵的代价复杂度后剪枝
+    剪枝策略:
+    - ID3: 不剪枝
+    - C4.5: 简化版悲观剪枝（PEP）
     """
 
     def __init__(self, criterion: str = "id3") -> None:
@@ -143,7 +145,7 @@ class DecisionTree:
         - 默认不剪枝，保留完整树结构。
 
         C4.5:
-        - 使用悲观剪枝（PEP）。
+        - 使用简化版悲观剪枝（PEP）。
         - 以训练误差的悲观估计比较叶节点与子树。
         """
         if self.tree is None:
@@ -298,7 +300,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="ID3/C4.5 classification tree for discrete features")
     parser.add_argument("--data", required=True, help="dataset path, supports CSV or JSON")
     parser.add_argument("--criterion", choices=["id3", "c45"], default="id3")
-    parser.add_argument("--alpha", type=float, default=0.0, help="post-pruning penalty")
+    parser.add_argument("--alpha", type=float, default=0.0, help="reserved for compatibility; ignored by current ID3/C4.5 pruning")
     parser.add_argument("--predict-index", type=int, default=0, help="which sample in dataset to predict")
     return parser.parse_args()
 
